@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-border: var(--border);
+    --color-accent: var(--accent);
+    --color-panel: var(--panel);
+    --color-muted: var(--muted);
+    
+    --font-heading: var(--font-serif);
+    --font-sans: var(--font-sans);
+    --font-mono: var(--font-mono);
+}
+
+:root {
+    --background: #FFFFFF;
+    --foreground: #050505;
+    --border: #E5E5E5;
+    --accent: #b69121;
+    --panel: #F8F8F8;
+    --muted: rgba(0, 0, 0, 0.4);
+}
+
+.dark {
+    --background: #050505;
+    --foreground: #F0F0F0;
+    --border: #1A1A1A;
+    --accent: #D4AF37;
+    --panel: #0A0A0A;
+    --muted: rgba(255, 255, 255, 0.4);
+}
+
+body {
+    background-color: var(--background);
+    color: var(--foreground);
+    margin: 0;
+    height: 100%;
+}
+
+* {
+    border-color: var(--border);
+}
+
+/* Override previous styles, replacing curves with sharp edges */
+.glass-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 0;
+}
+.glass-panel:hover {
+    border-color: var(--accent);
+}
+
+/* Some geometric elements from the theme */
+.geo-border {
+    border: 1px solid var(--border);
+}
+.geo-border:hover {
+    border-color: var(--accent);
+}

@@ -1,0 +1,12 @@
+<evaluation>
+  <question>What is the projected LTV for a user churn rate of 5% with an MRR goal of 5000?</question>
+  <question>List all the revenue scenarios previously saved for project ID 'stark-finance'.</question>
+  <question>Get the payout history for user ID 'u_123' on the ledger.</question>
+  <question>Combine the projected revenue data with the payout history of the top earner.</question>
+  <question>Show me the top 3 highest payout transactions for the current month.</question>
+  <question>What scenarios yield the highest return according to the simulate tool?</question>
+  <question>Compare the simulated revenue of project A vs project B assuming 2% churn.</question>
+  <question>Find the total accumulated XP for user ID 'u_vibe_99'.</question>
+  <question>What is the difference between the actual payouts and the highest revenue scenario?</question>
+  <question>Calculate the variance over the payout history recorded so far.</question>
+</evaluation>
