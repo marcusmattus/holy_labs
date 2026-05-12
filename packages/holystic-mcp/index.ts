@@ -1,4 +1,4 @@
-import { generateApp } from '../server/services/ai';
+const generateApp = async () => {};
 
 console.log("Holy - Vibe Engine MCP initialized");
 // For full implementation, this package would use @modelcontextprotocol/sdk

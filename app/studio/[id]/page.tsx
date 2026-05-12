@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Play, Code, Monitor, Smartphone, LayoutGrid, Check, Settings, Sparkles } from 'lucide-react';
+import { Play, Code, Monitor, Smartphone, LayoutGrid, Check, Settings, Sparkles, Cloud } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useParams } from 'next/navigation';
 
@@ -18,6 +18,21 @@ export default function Studio() {
         { role: 'user', text: 'Create a minimal neobank dashboard with dark gold accents.' },
         { role: 'ai', text: 'Generated high-fidelity financial hub.' }
     ]);
+    const [saveStatus, setSaveStatus] = useState<'Saved' | 'Unsaved changes' | 'Saving...'>('Saved');
+
+    useEffect(() => {
+        if (!prompt && !isGenerating && !streaming) return;
+        
+        setSaveStatus('Unsaved changes');
+        const timeout = setTimeout(() => {
+            setSaveStatus('Saving...');
+            setTimeout(() => {
+                setSaveStatus('Saved');
+            }, 800);
+        }, 1000);
+
+        return () => clearTimeout(timeout);
+    }, [prompt, isGenerating, streaming]);
 
     const startGeneration = () => {
         if (!prompt) return;
@@ -49,6 +64,18 @@ export default function Studio() {
                     <div className="flex items-center space-x-3 text-[10px] font-mono uppercase tracking-widest">
                         <span className="opacity-40">Target Instance:</span>
                         <span className="text-[#D4AF37]">{isNew ? 'New Generation' : 'Stark Finance'}</span>
+                        <div className="h-4 w-px bg-[#1A1A1A] mx-2"></div>
+                        <div className={cn(
+                            "flex items-center gap-1.5 transition-colors",
+                            saveStatus === 'Saved' ? 'text-green-500/70' : 
+                            saveStatus === 'Saving...' ? 'text-[#D4AF37] animate-pulse' : 
+                            'text-white/40'
+                        )}>
+                            {saveStatus === 'Saving...' && <Cloud className="w-3 h-3" />}
+                            {saveStatus === 'Saved' && <Check className="w-3 h-3" />}
+                            {saveStatus === 'Unsaved changes' && <div className="w-1.5 h-1.5 rounded-full bg-white/40" />}
+                            <span>{saveStatus}</span>
+                        </div>
                     </div>
                 </div>
 
