@@ -1,66 +1,149 @@
 'use client';
 
 import { NavBar } from '@/components/shared/NavBar';
-import { Search } from 'lucide-react';
-import Link from 'next/link';
+import { PRODUCTS } from '@/lib/products';
+import { createCheckoutSession } from '@/app/actions/stripe';
+import { Check, Sparkles, Zap, Building } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useState } from 'react';
 
-export default function StoreBrowse() {
-  const listings = [
-    { id: '1', title: 'Arbiter v2', price: '$49.00', desc: 'Financial dashboard templates' },
-    { id: '2', title: 'Liturgy UI Kit', price: '$120.00', desc: 'Deep geometric configurations' },
-    { id: '3', title: 'Neon Engine', price: 'FREE', desc: 'Core logic plugins' }
-  ];
+const icons: Record<string, React.ElementType> = {
+  Sparkles,
+  Zap,
+  Building,
+};
+
+export default function StorePage() {
+  const [loading, setLoading] = useState<string | null>(null);
+
+  const handleSubscribe = async (productId: string) => {
+    setLoading(productId);
+    try {
+      const result = await createCheckoutSession(productId, window.location.origin);
+      if (result.url) {
+        window.location.href = result.url;
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+    } finally {
+      setLoading(null);
+    }
+  };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#050505] text-[#F0F0F0]">
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
       <NavBar />
-      <main className="flex-1 grid grid-cols-12 w-full h-full">
-        {/* Left column / Hero title */}
-        <div className="col-span-12 lg:col-span-4 border-r border-[#1A1A1A] p-10 bg-[#0A0A0A] flex flex-col">
+      <main className="flex-1 w-full">
+        {/* Hero Section */}
+        <div className="border-b border-border p-10 bg-panel">
+          <div className="max-w-6xl mx-auto">
             <div className="flex items-center gap-3 mb-6">
-                <span className="text-[10px] font-mono text-[#D4AF37] px-2 py-0.5 border border-[#D4AF37]">02</span>
-                <h2 className="text-xl font-serif italic text-white/60">Asset Registry</h2>
+              <span className="text-[10px] font-mono text-accent px-2 py-0.5 border border-accent">02</span>
+              <h2 className="text-xl font-serif italic text-muted">Subscription Plans</h2>
             </div>
-            <h1 className="text-5xl font-sans font-bold uppercase tracking-tighter mb-6">The Store</h1>
-            <p className="text-[11px] font-mono opacity-50 uppercase leading-relaxed tracking-widest border-l border-[#D4AF37] pl-4">
-                Acquire UI blocks, state engines, and pure aesthetic components.
+            <h1 className="text-5xl font-sans font-bold uppercase tracking-tighter mb-6">Choose Your Plan</h1>
+            <p className="text-[11px] font-mono opacity-50 uppercase leading-relaxed tracking-widest border-l border-accent pl-4 max-w-xl">
+              Unlock the full potential of Holy AI. Build, deploy, and scale your applications with powerful AI assistance.
             </p>
-            
-            <div className="mt-auto border border-[#1A1A1A] bg-[#050505] p-2 flex items-center">
-                <Search className="w-4 h-4 text-[#D4AF37] ml-2" />
-                <input type="text" placeholder="QUERY INDEX..." className="bg-transparent border-none w-full p-2 text-[10px] font-mono focus:outline-none placeholder-[#1A1A1A] uppercase tracking-widest" />
-            </div>
+          </div>
         </div>
 
-        {/* Store Grid */}
-        <div className="col-span-12 lg:col-span-8">
-            <div className="h-16 border-b border-[#1A1A1A] flex items-center px-10 bg-[#050505] justify-between">
-                <span className="text-[10px] font-mono opacity-40 uppercase tracking-widest">Available Items</span>
-                <span className="text-[10px] font-mono text-[#D4AF37]">3,104 ASSETS</span>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2">
-                {listings.map(item => (
-                    <div key={item.id} className="border-r border-b border-[#1A1A1A] p-10 flex flex-col h-72 hover:bg-[#0A0A0A] transition-colors group relative cursor-pointer">
-                        <div className="absolute top-4 right-4 text-[10px] font-mono opacity-30 group-hover:opacity-100 transition-opacity uppercase border border-[#1A1A1A] group-hover:border-[#D4AF37] px-2 py-1">View_</div>
-                        <div className="flex-1 mt-4">
-                            <h3 className="text-2xl font-bold uppercase tracking-tight mb-2">{item.title}</h3>
-                            <p className="text-[11px] font-mono opacity-50 uppercase tracking-widest">{item.desc}</p>
-                        </div>
-                        <div className="flex justify-between items-end border-t border-[#1A1A1A] pt-6">
-                            <span className="text-sm font-mono text-[#D4AF37]">{item.price}</span>
-                            <button className="text-[10px] font-bold uppercase tracking-widest hover:text-[#D4AF37] transition-colors">Acquire</button>
-                        </div>
+        {/* Pricing Grid */}
+        <div className="max-w-6xl mx-auto p-10">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {PRODUCTS.map((product) => {
+              const Icon = product.icon ? icons[product.icon] : Sparkles;
+              return (
+                <div
+                  key={product.id}
+                  className={cn(
+                    "border border-border p-8 flex flex-col hover:border-accent transition-colors relative",
+                    product.popular && "border-accent"
+                  )}
+                >
+                  {product.popular && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-accent text-background px-4 py-1 text-[10px] font-mono uppercase tracking-widest">
+                      Most Popular
                     </div>
-                ))}
-                
-                {/* Empty block to fill out grid */}
-                <div className="border-r border-b border-[#1A1A1A] p-10 flex items-center justify-center opacity-10 bg-[#0A0A0A]">
-                    <span className="font-mono text-4xl">+</span>
+                  )}
+                  
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 border border-border flex items-center justify-center">
+                      <Icon className="w-5 h-5 text-accent" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold uppercase tracking-tight">{product.name}</h3>
+                      <p className="text-[10px] font-mono text-muted uppercase">{product.description}</p>
+                    </div>
+                  </div>
+
+                  <div className="mb-6">
+                    <span className="text-4xl font-bold">
+                      {product.priceInCents === 0 ? 'Free' : `$${(product.priceInCents / 100).toFixed(0)}`}
+                    </span>
+                    {product.priceInCents > 0 && (
+                      <span className="text-muted text-sm font-mono">/month</span>
+                    )}
+                  </div>
+
+                  <ul className="space-y-3 mb-8 flex-1">
+                    {product.features.map((feature, idx) => (
+                      <li key={idx} className="flex items-start gap-3 text-sm">
+                        <Check className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+                        <span className="text-foreground/80">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <button
+                    onClick={() => handleSubscribe(product.id)}
+                    disabled={loading === product.id}
+                    className={cn(
+                      "w-full py-3 font-bold text-sm tracking-widest uppercase transition-colors disabled:opacity-50",
+                      product.popular
+                        ? "bg-accent text-background hover:bg-accent/90"
+                        : "bg-foreground text-background hover:bg-accent hover:text-foreground"
+                    )}
+                  >
+                    {loading === product.id ? 'Processing...' : product.priceInCents === 0 ? 'Get Started' : 'Subscribe'}
+                  </button>
                 </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Features Section */}
+        <div className="border-t border-border p-10 bg-panel">
+          <div className="max-w-6xl mx-auto">
+            <h2 className="text-2xl font-bold uppercase tracking-tight mb-8">All Plans Include</h2>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {[
+                { title: 'AI Generation', desc: 'Powered by cutting-edge models' },
+                { title: 'Live Preview', desc: 'See changes in real-time' },
+                { title: 'Code Export', desc: 'Download production-ready code' },
+                { title: 'Cloud Hosting', desc: 'Deploy with one click' },
+              ].map((item, idx) => (
+                <div key={idx} className="border border-border p-6">
+                  <h3 className="font-bold uppercase tracking-tight mb-2">{item.title}</h3>
+                  <p className="text-[11px] font-mono text-muted uppercase">{item.desc}</p>
+                </div>
+              ))}
             </div>
+          </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="h-12 border-t border-border flex items-center px-10 justify-between font-mono text-[10px] tracking-widest bg-background">
+        <div className="flex gap-6 opacity-40">
+          <span>PAYMENTS: STRIPE</span>
+          <span>SECURITY: PCI_COMPLIANT</span>
+        </div>
+        <div className="flex gap-6">
+          <span className="text-accent">HOLY_COMMERCE ACTIVE</span>
+        </div>
+      </footer>
     </div>
   );
 }

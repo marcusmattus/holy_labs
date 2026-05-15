@@ -2,230 +2,331 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Play, Code, Monitor, Smartphone, LayoutGrid, Check, Settings, Sparkles, Cloud } from 'lucide-react';
+import { Play, Code, Monitor, Smartphone, LayoutGrid, Check, Settings, Sparkles, Cloud, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+
+interface Message {
+  role: 'user' | 'ai';
+  text: string;
+}
 
 export default function Studio() {
-    const { id } = useParams();
-    const isNew = id === 'new';
+  const { id } = useParams();
+  const router = useRouter();
+  const isNew = id === 'new';
+  
+  const [viewMode, setViewMode] = useState<'desktop' | 'mobile' | 'code'>('desktop');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [streaming, setStreaming] = useState(false);
+  const [prompt, setPrompt] = useState('');
+  const [appName, setAppName] = useState(isNew ? 'Untitled App' : '');
+  const [generatedCode, setGeneratedCode] = useState('');
+  const [history, setHistory] = useState<Message[]>([]);
+  const [saveStatus, setSaveStatus] = useState<'Saved' | 'Unsaved changes' | 'Saving...'>('Saved');
+  const [user, setUser] = useState<any>(null);
+  const [appData, setAppData] = useState<any>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
     
-    const [viewMode, setViewMode] = useState<'desktop' | 'mobile' | 'code'>('desktop');
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [streaming, setStreaming] = useState(false);
-    const [prompt, setPrompt] = useState('');
-    const [history, setHistory] = useState([
-        { role: 'user', text: 'Create a minimal neobank dashboard with dark gold accents.' },
-        { role: 'ai', text: 'Generated high-fidelity financial hub.' }
-    ]);
-    const [saveStatus, setSaveStatus] = useState<'Saved' | 'Unsaved changes' | 'Saving...'>('Saved');
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+      if (!user) {
+        router.push('/auth/login?redirect=/studio/new');
+      }
+    });
 
-    useEffect(() => {
-        if (!prompt && !isGenerating && !streaming) return;
-        
-        setSaveStatus('Unsaved changes');
-        const timeout = setTimeout(() => {
-            setSaveStatus('Saving...');
-            setTimeout(() => {
-                setSaveStatus('Saved');
-            }, 800);
-        }, 1000);
+    // Load existing app if not new
+    if (!isNew && id) {
+      supabase
+        .from('generated_apps')
+        .select('*')
+        .eq('id', id)
+        .single()
+        .then(({ data, error }) => {
+          if (data) {
+            setAppData(data);
+            setAppName(data.name);
+            setGeneratedCode(data.generated_code || '');
+          }
+        });
+    }
+  }, [id, isNew, router]);
 
-        return () => clearTimeout(timeout);
-    }, [prompt, isGenerating, streaming]);
+  useEffect(() => {
+    if (!prompt && !isGenerating && !streaming) return;
+    
+    setSaveStatus('Unsaved changes');
+  }, [prompt, isGenerating, streaming]);
 
-    const startGeneration = () => {
-        if (!prompt) return;
-        setIsGenerating(true);
-        setTimeout(() => {
-            setIsGenerating(false);
-            setStreaming(true);
-            setHistory(prev => [...prev, { role: 'user', text: prompt }]);
-            setPrompt('');
-            setTimeout(() => { 
-                setStreaming(false); 
-                setHistory(prev => [...prev, { role: 'ai', text: 'Layout adjusted. Applied aesthetic tokens.' }]);
-            }, 2000);
-        }, 1500);
+  const saveApp = async () => {
+    if (!user) return;
+    
+    setSaveStatus('Saving...');
+    const supabase = createClient();
+    
+    const appPayload = {
+      name: appName,
+      description: history.length > 0 ? history[0].text : '',
+      generated_code: generatedCode,
+      status: 'draft',
+      user_id: user.id,
     };
 
-    return (
-        <div className="min-h-screen flex flex-col overflow-hidden bg-[#050505] text-[#F0F0F0]">
-            {/* Top Navigation / Branding */}
-            <nav className="h-20 border-b border-[#1A1A1A] flex items-center justify-between px-10 z-50 shrink-0 bg-[#0A0A0A]">
-                <div className="flex items-center space-x-8">
-                    <Link href="/" className="flex items-center space-x-4">
-                        <div className="w-8 h-8 border border-[#D4AF37] rotate-45 flex items-center justify-center">
-                            <div className="w-2 h-2 bg-[#D4AF37]"></div>
-                        </div>
-                        <span className="font-bold tracking-tighter text-2xl uppercase">Holy</span>
-                    </Link>
-                    <div className="h-6 w-px bg-[#1A1A1A]"></div>
-                    <div className="flex items-center space-x-3 text-[10px] font-mono uppercase tracking-widest">
-                        <span className="opacity-40">Target Instance:</span>
-                        <span className="text-[#D4AF37]">{isNew ? 'New Generation' : 'Stark Finance'}</span>
-                        <div className="h-4 w-px bg-[#1A1A1A] mx-2"></div>
-                        <div className={cn(
-                            "flex items-center gap-1.5 transition-colors",
-                            saveStatus === 'Saved' ? 'text-green-500/70' : 
-                            saveStatus === 'Saving...' ? 'text-[#D4AF37] animate-pulse' : 
-                            'text-white/40'
-                        )}>
-                            {saveStatus === 'Saving...' && <Cloud className="w-3 h-3" />}
-                            {saveStatus === 'Saved' && <Check className="w-3 h-3" />}
-                            {saveStatus === 'Unsaved changes' && <div className="w-1.5 h-1.5 rounded-full bg-white/40" />}
-                            <span>{saveStatus}</span>
-                        </div>
-                    </div>
-                </div>
+    if (isNew) {
+      const { data, error } = await supabase
+        .from('generated_apps')
+        .insert(appPayload)
+        .select()
+        .single();
+      
+      if (data && !error) {
+        router.push(`/studio/${data.id}`);
+      }
+    } else {
+      await supabase
+        .from('generated_apps')
+        .update(appPayload)
+        .eq('id', id);
+    }
+    
+    setSaveStatus('Saved');
+  };
 
-                <div className="flex items-center gap-6">
-                    <div className="flex items-center border border-[#1A1A1A] p-0.5 bg-[#050505]">
-                        <button onClick={() => setViewMode('desktop')} className={cn("p-2 transition-colors", viewMode === 'desktop' ? "bg-[#1A1A1A] text-white" : "text-white/40 hover:text-white")}>
-                            <Monitor className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => setViewMode('mobile')} className={cn("p-2 transition-colors", viewMode === 'mobile' ? "bg-[#1A1A1A] text-white" : "text-white/40 hover:text-white")}>
-                            <Smartphone className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => setViewMode('code')} className={cn("p-2 transition-colors", viewMode === 'code' ? "bg-[#1A1A1A] text-white" : "text-white/40 hover:text-white")}>
-                            <Code className="w-4 h-4" />
-                        </button>
-                    </div>
-                    <Link href={`/deploy/${id}`} className="bg-[#F0F0F0] text-[#050505] px-6 py-3 text-[10px] font-bold uppercase tracking-widest hover:bg-[#D4AF37] transition-colors">
-                        Execute Deploy
-                    </Link>
-                </div>
-            </nav>
+  const startGeneration = async () => {
+    if (!prompt) return;
+    
+    setIsGenerating(true);
+    setHistory(prev => [...prev, { role: 'user', text: prompt }]);
+    
+    // Simulate AI generation (in production, call your AI API)
+    setTimeout(() => {
+      setIsGenerating(false);
+      setStreaming(true);
+      
+      // Simulated generated code
+      const code = `// Generated by Holy AI
+import { Header } from '@holy/ui';
 
-            {/* Builder Workspace Container using Grid */}
-            <main className="flex-1 grid grid-cols-12 overflow-hidden">
-                
-                {/* Left Panel: AI Control / Studio Menu */}
-                <aside className="col-span-12 lg:col-span-4 border-r border-[#1A1A1A] flex flex-col bg-[#050505] overflow-hidden">
-                    <div className="p-8 border-b border-[#1A1A1A] flex items-center gap-3 shrink-0">
-                        <span className="text-[10px] font-mono text-[#D4AF37] px-2 py-0.5 border border-[#D4AF37]">01</span>
-                        <h2 className="text-xl font-serif italic text-white/80">Command Terminal</h2>
-                    </div>
+export default function ${appName.replace(/\s+/g, '')}() {
+  return (
+    <main className="min-h-screen bg-background">
+      <Header title="${appName}" />
+      <div className="p-8">
+        {/* ${prompt} */}
+        <h1 className="text-4xl font-bold">${appName}</h1>
+      </div>
+    </main>
+  );
+}`;
+      
+      setGeneratedCode(code);
+      setPrompt('');
+      
+      setTimeout(() => { 
+        setStreaming(false); 
+        setHistory(prev => [...prev, { role: 'ai', text: 'Generation complete. Your app has been updated with the requested changes.' }]);
+        setSaveStatus('Unsaved changes');
+      }, 2000);
+    }, 1500);
+  };
 
-                    <div className="flex-1 overflow-y-auto p-8 font-mono text-sm">
-                        {/* History Stack */}
-                        <div className="space-y-6">
-                            {history.map((item, idx) => (
-                                <div key={idx} className="group">
-                                    <div className="flex items-center gap-3 mb-2 text-[10px] uppercase tracking-[0.2em]">
-                                        <span className={cn(item.role === 'user' ? "text-[#F0F0F0] opacity-50" : "text-[#D4AF37]")}>
-                                            {item.role === 'user' ? 'USER_INPUT' : 'SYS_RESPONSE'}
-                                        </span>
-                                    </div>
-                                    <p className={cn("pl-4 py-1 border-l", item.role === 'user' ? "border-[#1A1A1A] opacity-80" : "border-[#D4AF37] text-white")}>
-                                        {item.text}
-                                    </p>
-                                </div>
-                            ))}
-
-                            {/* Streaming UI */}
-                            {streaming && (
-                                <div className="border-l border-[#D4AF37] pl-4 py-2 space-y-2">
-                                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-[#D4AF37]">
-                                        <div className="w-2 h-2 bg-[#D4AF37]"></div>
-                                        <span>Executing...</span>
-                                    </div>
-                                    <p className="text-sm border-[#1A1A1A] opacity-80 animate-pulse">
-                                        &gt; Injecting protocol layers...<br/>
-                                        &gt; Scaffolding aesthetic parameters...
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Fixed Bottom Input Area */}
-                    <div className="p-8 border-t border-[#1A1A1A] bg-[#0A0A0A]">
-                        <div className="border border-[#1A1A1A] bg-[#050505] p-1 relative flex flex-col focus-within:border-[#D4AF37] transition-colors">
-                            <textarea 
-                                value={prompt}
-                                onChange={e => setPrompt(e.target.value)}
-                                onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); startGeneration(); } }}
-                                placeholder="&gt; INPUT PARAMETERS..." 
-                                className="w-full bg-transparent border-none p-4 focus:outline-none focus:ring-0 text-xs font-mono placeholder-[#1A1A1A] resize-none min-h-[80px]"
-                            />
-                            <div className="bg-[#0A0A0A] border-t border-[#1A1A1A] flex justify-between items-center p-2">
-                                <button className="p-2 opacity-50 hover:opacity-100 hover:text-[#D4AF37] transition-colors">
-                                    <LayoutGrid className="w-4 h-4" />
-                                </button>
-                                <button 
-                                    onClick={startGeneration}
-                                    disabled={isGenerating || !prompt}
-                                    className="bg-white text-black px-4 py-2 text-[10px] uppercase font-bold tracking-widest hover:bg-[#D4AF37] transition-colors disabled:opacity-50 flex items-center gap-2"
-                                >
-                                    {!isGenerating ? <span>Generate</span> : <Sparkles className="animate-spin w-4 h-4" />}
-                                </button>
-                            </div>
-                        </div>
-                        <div className="mt-6 flex flex-wrap gap-2 text-[9px] font-mono uppercase">
-                            <button onClick={() => setPrompt('Initialize stark components')} className="border border-[#1A1A1A] px-3 py-1.5 hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors">INIT STARK</button>
-                            <button onClick={() => setPrompt('Apply monolithic theme')} className="border border-[#1A1A1A] px-3 py-1.5 hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors">MONOLITH THEME</button>
-                        </div>
-                    </div>
-                </aside>
-
-                {/* Right Panel: Canvas & Preview */}
-                <section className="col-span-12 lg:col-span-8 flex flex-col bg-[#0A0A0A] relative overflow-hidden">
-                    
-                    {/* View Options bar */}
-                    <div className="h-12 border-b border-[#1A1A1A] flex justify-between items-center px-8 bg-[#050505]">
-                        <div className="flex items-center gap-3 text-[10px] font-mono tracking-widest uppercase">
-                            <span className="text-[#D4AF37] mr-1">■</span> LIVE Render
-                        </div>
-                        <span className="text-[10px] font-mono opacity-30 uppercase tracking-widest">W/1024_H/768</span>
-                    </div>
-
-                    {/* Canvas Simulation */}
-                    <div className="flex-1 p-8 flex items-center justify-center overflow-auto custom-scroll">
-                        <div className={cn(
-                            "bg-[#050505] overflow-hidden transition-all duration-500 relative border border-[#1A1A1A]",
-                            viewMode === 'mobile' ? 'w-[320px] h-[640px]' : viewMode === 'desktop' ? 'w-full max-w-4xl h-[700px]' : 'w-full max-w-4xl h-full bg-[#0A0A0A] border-none'
-                        )}>
-                            {viewMode === 'code' ? (
-                                <div className="p-8 font-mono text-xs text-[#F0F0F0] overflow-y-auto h-full opacity-80">
-                                    <p className="text-[#D4AF37] mb-4">// MVP_LIVE_AT: holy.sh/v/39f2a</p>
-                                    <p>import {"{"} Header {"}"} from '@holy/ui';</p>
-                                    <br/>
-                                    <p>export default function Frame() {"{"}</p>
-                                    <div className="pl-6 border-l border-[#1A1A1A] ml-2 my-2">
-                                        <p>return (</p>
-                                        <div className="pl-6">
-                                            <p>&lt;main className="border border-[#1A1A1A] flex"&gt;</p>
-                                            <p className="pl-6 text-[#999]">/* Executed GUI Content */</p>
-                                            <p>&lt;/main&gt;</p>
-                                        </div>
-                                        <p>);</p>
-                                    </div>
-                                    <p>{"}"}</p>
-                                </div>
-                            ) : (
-                                <div className="w-full h-full text-white overflow-y-auto custom-scroll flex flex-col">
-                                    <div className="p-10 border-b border-[#1A1A1A] flex justify-between items-end">
-                                        <span className="text-4xl font-sans tracking-tight">CHRONOS</span>
-                                        <span className="text-[10px] font-mono uppercase tracking-[0.3em] opacity-40">Vault Layer</span>
-                                    </div>
-                                    <div className="p-10 flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {[1, 2].map((i) => (
-                                            <div key={i} className="border border-[#1A1A1A] p-6 flex flex-col justify-end aspect-[4/5] hover:border-[#D4AF37] transition-colors relative group">
-                                                <div className="absolute top-4 right-4 text-[10px] font-mono text-[#D4AF37] opacity-0 group-hover:opacity-100 transition-opacity uppercase border border-[#D4AF37] px-2 py-1">Edit_</div>
-                                                <div className="space-y-2">
-                                                    <div className="text-[10px] font-mono text-[#D4AF37] tracking-widest">IDX / 0{i}</div>
-                                                    <div className="text-xl font-sans">Asset {5270 + i}</div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </section>
-            </main>
+  return (
+    <div className="min-h-screen flex flex-col overflow-hidden bg-background text-foreground">
+      {/* Top Navigation */}
+      <nav className="h-20 border-b border-border flex items-center justify-between px-10 z-50 shrink-0 bg-panel">
+        <div className="flex items-center space-x-8">
+          <Link href="/" className="flex items-center space-x-4">
+            <div className="w-8 h-8 border border-accent rotate-45 flex items-center justify-center">
+              <div className="w-2 h-2 bg-accent"></div>
+            </div>
+            <span className="font-bold tracking-tighter text-2xl uppercase">Holy</span>
+          </Link>
+          <div className="h-6 w-px bg-border"></div>
+          <div className="flex items-center space-x-3 text-[10px] font-mono uppercase tracking-widest">
+            <span className="opacity-40">Target Instance:</span>
+            <input
+              type="text"
+              value={appName}
+              onChange={(e) => {
+                setAppName(e.target.value);
+                setSaveStatus('Unsaved changes');
+              }}
+              className="bg-transparent border-b border-border focus:border-accent outline-none text-accent px-1"
+            />
+            <div className="h-4 w-px bg-border mx-2"></div>
+            <div className={cn(
+              "flex items-center gap-1.5 transition-colors",
+              saveStatus === 'Saved' ? 'text-green-500/70' : 
+              saveStatus === 'Saving...' ? 'text-accent animate-pulse' : 
+              'text-foreground/40'
+            )}>
+              {saveStatus === 'Saving...' && <Cloud className="w-3 h-3" />}
+              {saveStatus === 'Saved' && <Check className="w-3 h-3" />}
+              {saveStatus === 'Unsaved changes' && <div className="w-1.5 h-1.5 rounded-full bg-foreground/40" />}
+              <span>{saveStatus}</span>
+            </div>
+          </div>
         </div>
-    );
+
+        <div className="flex items-center gap-6">
+          <div className="flex items-center border border-border p-0.5 bg-background">
+            <button onClick={() => setViewMode('desktop')} className={cn("p-2 transition-colors", viewMode === 'desktop' ? "bg-border text-foreground" : "text-foreground/40 hover:text-foreground")}>
+              <Monitor className="w-4 h-4" />
+            </button>
+            <button onClick={() => setViewMode('mobile')} className={cn("p-2 transition-colors", viewMode === 'mobile' ? "bg-border text-foreground" : "text-foreground/40 hover:text-foreground")}>
+              <Smartphone className="w-4 h-4" />
+            </button>
+            <button onClick={() => setViewMode('code')} className={cn("p-2 transition-colors", viewMode === 'code' ? "bg-border text-foreground" : "text-foreground/40 hover:text-foreground")}>
+              <Code className="w-4 h-4" />
+            </button>
+          </div>
+          <button
+            onClick={saveApp}
+            className="flex items-center gap-2 border border-border px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:border-accent hover:text-accent transition-colors"
+          >
+            <Save className="w-4 h-4" /> Save
+          </button>
+          <Link href={`/deploy/${id}`} className="bg-foreground text-background px-6 py-3 text-[10px] font-bold uppercase tracking-widest hover:bg-accent transition-colors">
+            Execute Deploy
+          </Link>
+        </div>
+      </nav>
+
+      {/* Builder Workspace */}
+      <main className="flex-1 grid grid-cols-12 overflow-hidden">
+        
+        {/* Left Panel: AI Control */}
+        <aside className="col-span-12 lg:col-span-4 border-r border-border flex flex-col bg-background overflow-hidden">
+          <div className="p-8 border-b border-border flex items-center gap-3 shrink-0">
+            <span className="text-[10px] font-mono text-accent px-2 py-0.5 border border-accent">01</span>
+            <h2 className="text-xl font-serif italic text-muted">Command Terminal</h2>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-8 font-mono text-sm">
+            <div className="space-y-6">
+              {history.length === 0 && (
+                <div className="text-center py-12 opacity-40">
+                  <Sparkles className="w-8 h-8 mx-auto mb-4" />
+                  <p className="text-[10px] uppercase tracking-widest">Describe your app to begin</p>
+                </div>
+              )}
+              
+              {history.map((item, idx) => (
+                <div key={idx} className="group">
+                  <div className="flex items-center gap-3 mb-2 text-[10px] uppercase tracking-[0.2em]">
+                    <span className={cn(item.role === 'user' ? "text-foreground opacity-50" : "text-accent")}>
+                      {item.role === 'user' ? 'USER_INPUT' : 'SYS_RESPONSE'}
+                    </span>
+                  </div>
+                  <p className={cn("pl-4 py-1 border-l", item.role === 'user' ? "border-border opacity-80" : "border-accent text-foreground")}>
+                    {item.text}
+                  </p>
+                </div>
+              ))}
+
+              {streaming && (
+                <div className="border-l border-accent pl-4 py-2 space-y-2">
+                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-accent">
+                    <div className="w-2 h-2 bg-accent animate-pulse"></div>
+                    <span>Executing...</span>
+                  </div>
+                  <p className="text-sm border-border opacity-80 animate-pulse">
+                    &gt; Generating components...<br/>
+                    &gt; Applying aesthetic parameters...
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Input Area */}
+          <div className="p-8 border-t border-border bg-panel">
+            <div className="border border-border bg-background p-1 relative flex flex-col focus-within:border-accent transition-colors">
+              <textarea 
+                value={prompt}
+                onChange={e => setPrompt(e.target.value)}
+                onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); startGeneration(); } }}
+                placeholder="&gt; Describe your app..." 
+                className="w-full bg-transparent border-none p-4 focus:outline-none focus:ring-0 text-xs font-mono placeholder-muted resize-none min-h-[80px]"
+              />
+              <div className="bg-panel border-t border-border flex justify-between items-center p-2">
+                <button className="p-2 opacity-50 hover:opacity-100 hover:text-accent transition-colors">
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={startGeneration}
+                  disabled={isGenerating || !prompt}
+                  className="bg-foreground text-background px-4 py-2 text-[10px] uppercase font-bold tracking-widest hover:bg-accent transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {!isGenerating ? <span>Generate</span> : <Sparkles className="animate-spin w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="mt-6 flex flex-wrap gap-2 text-[9px] font-mono uppercase">
+              <button onClick={() => setPrompt('Create a modern dashboard with analytics')} className="border border-border px-3 py-1.5 hover:border-accent hover:text-accent transition-colors">DASHBOARD</button>
+              <button onClick={() => setPrompt('Build an e-commerce store')} className="border border-border px-3 py-1.5 hover:border-accent hover:text-accent transition-colors">E-COMMERCE</button>
+              <button onClick={() => setPrompt('Create a landing page')} className="border border-border px-3 py-1.5 hover:border-accent hover:text-accent transition-colors">LANDING</button>
+            </div>
+          </div>
+        </aside>
+
+        {/* Right Panel: Canvas */}
+        <section className="col-span-12 lg:col-span-8 flex flex-col bg-panel relative overflow-hidden">
+          <div className="h-12 border-b border-border flex justify-between items-center px-8 bg-background">
+            <div className="flex items-center gap-3 text-[10px] font-mono tracking-widest uppercase">
+              <span className="text-accent mr-1">■</span> LIVE Render
+            </div>
+            <span className="text-[10px] font-mono opacity-30 uppercase tracking-widest">
+              {viewMode === 'mobile' ? 'W/320_H/640' : 'W/1024_H/768'}
+            </span>
+          </div>
+
+          <div className="flex-1 p-8 flex items-center justify-center overflow-auto">
+            <div className={cn(
+              "bg-background overflow-hidden transition-all duration-500 relative border border-border",
+              viewMode === 'mobile' ? 'w-[320px] h-[640px]' : viewMode === 'desktop' ? 'w-full max-w-4xl h-[700px]' : 'w-full max-w-4xl h-full border-none'
+            )}>
+              {viewMode === 'code' ? (
+                <div className="p-8 font-mono text-xs text-foreground overflow-y-auto h-full opacity-80 bg-panel">
+                  <pre className="whitespace-pre-wrap">{generatedCode || '// Start generating to see code here'}</pre>
+                </div>
+              ) : (
+                <div className="w-full h-full text-foreground overflow-y-auto flex flex-col">
+                  {generatedCode ? (
+                    <>
+                      <div className="p-10 border-b border-border flex justify-between items-end">
+                        <span className="text-4xl font-sans tracking-tight uppercase">{appName}</span>
+                        <span className="text-[10px] font-mono uppercase tracking-[0.3em] opacity-40">Preview</span>
+                      </div>
+                      <div className="p-10 flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {[1, 2, 3, 4].map((i) => (
+                          <div key={i} className="border border-border p-6 flex flex-col justify-end aspect-[4/3] hover:border-accent transition-colors relative group">
+                            <div className="absolute top-4 right-4 text-[10px] font-mono text-accent opacity-0 group-hover:opacity-100 transition-opacity uppercase border border-accent px-2 py-1">Edit_</div>
+                            <div className="space-y-2">
+                              <div className="text-[10px] font-mono text-accent tracking-widest">IDX / 0{i}</div>
+                              <div className="text-xl font-sans">Component {i}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center">
+                      <div className="text-center opacity-40">
+                        <Monitor className="w-12 h-12 mx-auto mb-4" />
+                        <p className="text-[10px] font-mono uppercase tracking-widest">Preview will appear here</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
 }

@@ -7,6 +7,11 @@
     --color-accent: var(--accent);
     --color-panel: var(--panel);
     --color-muted: var(--muted);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-destructive: var(--destructive);
     
     --font-heading: var(--font-serif);
     --font-sans: var(--font-sans);
@@ -20,6 +25,11 @@
     --accent: #b69121;
     --panel: #F8F8F8;
     --muted: rgba(0, 0, 0, 0.4);
+    --card: #FFFFFF;
+    --card-foreground: #050505;
+    --primary: #b69121;
+    --primary-foreground: #FFFFFF;
+    --destructive: #dc2626;
 }
 
 .dark {
@@ -29,6 +39,11 @@
     --accent: #D4AF37;
     --panel: #0A0A0A;
     --muted: rgba(255, 255, 255, 0.4);
+    --card: #0A0A0A;
+    --card-foreground: #F0F0F0;
+    --primary: #D4AF37;
+    --primary-foreground: #050505;
+    --destructive: #ef4444;
 }
 
 body {
